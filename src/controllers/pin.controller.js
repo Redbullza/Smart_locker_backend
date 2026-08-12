@@ -25,11 +25,13 @@ async function verifyPin(req, res) {
   // TODO: ในระบบจริงจะยิง request ไปสั่งงานบอร์ด ESP32 ตรงนี้
 
   if (action === 'close') {
+    // คืนตู้ได้ทุกเมื่อ ไม่ว่าจะก่อนหรือหลังเวลาที่จองไว้ (เช็คเอาต์ก่อนเวลาก็ทำได้ปกติ)
+    // ไม่ต้องอัปเดตสถานะตู้ที่นี่ — display_status ของตู้คำนวณสดจาก booking ที่ยัง active อยู่
+    // พอ booking นี้กลายเป็น completed แล้ว ตู้จะกลับไปแสดง "ว่าง" เองทันทีในครั้งถัดไปที่เรียก GET /lockers
     await pool.query(
       'UPDATE bookings SET status = $1, completed_at = NOW() WHERE booking_id = $2',
       ['completed', booking_id]
     );
-    await pool.query('UPDATE lockers SET status = $1 WHERE locker_id = $2', ['available', booking.locker_id]);
   }
 
   await pool.query('INSERT INTO logs (locker_id, user_id, action) VALUES ($1, $2, $3)', [

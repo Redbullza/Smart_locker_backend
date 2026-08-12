@@ -1,8 +1,5 @@
 const pool = require('../config/db');
 
-// ==================================================================
-// ส่วนที่ 8: รายงานสถิติ — รายวัน/รายเดือน/รายปี + อัตราการใช้ตู้
-// ==================================================================
 
 async function reports(req, res) {
   const period = ['daily', 'monthly', 'yearly'].includes(req.query.period) ? req.query.period : 'daily';

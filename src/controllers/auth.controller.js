@@ -1,9 +1,6 @@
 const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 
-// ==================================================================
-// ส่วนที่ 1: ระบบตรวจสอบสิทธิ์การเข้าใช้งาน (User Authentication)
-// ==================================================================
 
 async function register(req, res) {
   const { username, password, firstname, lastname } = req.body;

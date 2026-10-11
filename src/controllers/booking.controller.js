@@ -127,11 +127,73 @@ async function releaseBooking(req, res) {
   res.json({ success: true, message: 'ปล่อยตู้สำเร็จ คืนสิทธิ์ให้ผู้อื่นจองต่อได้แล้ว' });
 }
 
+// ==================================================================
+// ปลดล็อกตู้ หรือ คืนตู้ (รองรับทั้งแบบตู้เดียวและหลายตู้พร้อมกัน)
+// ==================================================================
+async function batchAction(req, res) {
+  const { user_id, items } = req.body;
+  if (!user_id || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน' });
+  }
+
+  const results = [];
+
+  for (const item of items) {
+    const { booking_id, action } = item;
+    try {
+      const bRes = await pool.query(
+        'SELECT * FROM bookings WHERE booking_id = $1 AND user_id = $2',
+        [booking_id, user_id]
+      );
+
+      if (bRes.rows.length === 0) {
+        results.push({ booking_id, success: false, message: 'ไม่พบรายการจองนี้หรือไม่มีสิทธิ์เข้าถึง' });
+        continue;
+      }
+
+      const booking = bRes.rows[0];
+      if (booking.status !== 'active') {
+        results.push({ booking_id, success: false, message: 'รายการจองนี้ไม่ได้อยู่ในสถานะใช้งาน' });
+        continue;
+      }
+
+      if (action === 'close') {
+        // คืนตู้: อัปเดตสถานะเป็น completed
+        await pool.query(
+          'UPDATE bookings SET status = $1, completed_at = NOW() WHERE booking_id = $2',
+          ['completed', booking_id]
+        );
+        // บันทึกประวัติการคืนตู้
+        await pool.query(
+          'INSERT INTO logs (locker_id, user_id, action) VALUES ($1, $2, $3)',
+          [booking.locker_id, user_id, 'close']
+        );
+        results.push({ booking_id, success: true, message: 'คืนตู้สำเร็จ' });
+      } else if (action === 'open') {
+        // ปลดล็อกตู้: บันทึกประวัติการเปิดตู้
+        await pool.query(
+          'INSERT INTO logs (locker_id, user_id, action) VALUES ($1, $2, $3)',
+          [booking.locker_id, user_id, 'open']
+        );
+        results.push({ booking_id, success: true, message: 'ปลดล็อกตู้สำเร็จ' });
+      } else {
+        results.push({ booking_id, success: false, message: 'คำสั่งไม่ถูกต้อง' });
+      }
+    } catch (err) {
+      console.error(`Batch action error on booking #${booking_id}:`, err);
+      results.push({ booking_id, success: false, message: 'เกิดข้อผิดพลาดในการทำรายการ' });
+    }
+  }
+
+  res.json({ success: true, results });
+}
+
 module.exports = {
   createBooking,
   myBookings,
   allBookings,
   releaseBooking,
+  batchAction,
   finalizeBooking,
   normalizePlannedMinutes,
 };
